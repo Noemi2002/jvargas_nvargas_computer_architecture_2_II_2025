@@ -1,33 +1,27 @@
 #include <iostream>
 #include <vector>
 
-std::vector<char> case_converter_serial(std::vector<char> text, int case_type){
-    // Pasar a minúscula
-    if (case_type == 0){
-        for (char &letter : text) {
-            int value = (int)letter;
-            if (value >= 65 && value <= 90){
-                int new_val = value + 32;
-                char new_letter = (char)new_val; 
-                letter = new_letter; 
-            }
-        }
-    }
-    // Pasar a mayúscula
-    if (case_type == 1){
-        for (char &letter : text) {
-            int value = (int)letter;
-            if (value >= 97 && value <= 122){
-                int new_val = value -32;
-                char new_letter = (char)new_val; 
-                letter = new_letter; 
-            }
-        }
-    }
-    return text;
-}
-            
+//Para ejecutar
+// g++ -O2 case_converter_serial.cpp -o case_serial
+// ./case_serial 
 
+void case_converter_serial(char* text, int m, int case_type) {
+    if (case_type == 0) {
+        for (int i = 0; i < m; i++) {
+            int val = (int)text[i];
+            if (val >= 65 && val <= 90)
+                text[i] = (char)(val + 32);
+        }
+    } else if (case_type == 1) {
+        for (int i = 0; i < m; i++) {
+            int val = (int)text[i];
+            if (val >= 97 && val <= 122)
+                text[i] = (char)(val - 32);
+        }
+    }
+}
+
+            
 
 
 
@@ -42,7 +36,8 @@ int main() {
     std::cout << std::endl;
 
     // Convertir a minúsculas
-    std::vector<char> lower = case_converter_serial(my_chars, 0);
+    std::vector<char> lower = my_chars;  // Crear una copia
+    case_converter_serial(lower.data(), lower.size(), 0);  // Pasar puntero y tamaño
 
     std::cout << "Vector en minúsculas: ";
     for (char c : lower) {
@@ -51,7 +46,8 @@ int main() {
     std::cout << std::endl;
 
     // Convertir a mayúsculas
-    std::vector<char> upper = case_converter_serial(my_chars, 1);
+    std::vector<char> upper = my_chars;  // Crear otra copia del original
+    case_converter_serial(upper.data(), upper.size(), 1);  // Pasar puntero y tamaño
 
     std::cout << "Vector en mayúsculas: ";
     for (char c : upper) {
