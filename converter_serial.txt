@@ -1,0 +1,30 @@
+Consideraciones:
+case = 1 -> pasar a mayúsculas (+32)
+case = 0 -> pasar a minúsculas (-32)
+text es un vector de tipo std::vector<char> text
+
+En ASCII:
+A-Z -> 65 - 90 (decimal)
+a-z -> 97 - 122 (decimal)
+
+case_converter_serial(text[m], case):
+    // Pasar a minúscula
+    si case = 0:
+        num = 32
+        para i en un rango de 0 a m-1:
+            int valor = (int)text[i] // Obtengo el valor numerico del caracter
+            si text[i] >= 65 y text[i] <= 90: // Verifico si es una letra en mayúscula
+                int new_val = valor + num // Lo convierto a minúscula
+                char let = (char)new_val // Convierto de nuevo a caracter
+                text[i] = let // Lo vuelvo a guardar en el vector
+    
+    // Pasar a mayúscula
+    si case = 1:
+        num = -32
+        para i en un rango de 0 a m:
+            int valor = (int)text[i] // Obtengo el valor numerico del caracter
+            si text[i] >= 97 y text[i] <= 122: // Verifico si es una letra en minúscula
+                int new_val = valor + num // Lo convierto a mayúscula
+                char let = (char)new_val // Convierto de nuevo a caracter
+                text[i] = let // Lo vuelvo a guardar en el vector
+

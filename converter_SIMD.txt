@@ -1,0 +1,152 @@
+Consideraciones:
+case = 1 -> pasar a mayúsculas (+32)
+case = 0 -> pasar a minúsculas (-32)
+text es un vector de tipo std::vector<char> text
+
+En ASCII:
+A-Z -> 65 - 90 (decimal)
+a-z -> 97 - 122 (decimal)
+
+case_converter_SIMD_256(text[], m, case_type):
+    // Constantes
+    VECTOR_SIZE = 32
+
+    // Procesar bloques completos de 32 caracteres
+    int i = 0
+    mientras (i + VECTOR_SIZE) <= m:
+
+        // 1. Cargar 32 caracteres con la función intrinsics
+        __m256i vec = _mm256_loadu_si256((__m256i*)&text[i])
+
+        // 2. Crear máscara de detección
+        si case_type == 0:     
+            // Convertir a minúsculas                      
+            lower = _mm256_set1_epi8('A' - 1) // 64
+            upper = _mm256_set1_epi8('Z' + 1) // 91
+        sino:
+            // Convertir a mayúsculas                                        
+            __m256i lower = _mm256_set1_epi8('a' - 1) // 96
+            __m256i upper = _mm256_set1_epi8('z' + 1) // 121
+
+        // Máscaras de comparación
+        __m256i mask1 = _mm256_cmpgt_epi8(vec, lower) // vec > lower
+        __m256i mask2 = _mm256_cmpgt_epi8(upper, vec) // upper > vec
+
+        // Combinar máscaras, es como un and lógico para verificar que las letras esten dentro del rango
+        __m256i mask  = _mm256_and_si256(mask1, mask2)
+
+        // 3. Aplicar conversión condicional
+        si case_type == 0:
+            __m256i offset = _mm256_set1_epi8(32)
+
+            // Sumar 32 a todos los caracteres marcados 
+            __m256i converted = _mm256_add_epi8(vec, offset)
+        sino:
+            offset = _mm256_set1_epi8(-32)          
+            
+            // Restar 32 en todos los caracteres marcados
+            converted = _mm256_add_epi8(vec, offset)
+
+        result = _mm256_blendv_epi8(vec, converted, mask)
+
+        // 4. Almacenar resultado
+        _mm256_storeu_si256((__m256i*)&text[i], result)
+
+        i = i + VECTOR_SIZE
+
+// ------------------------------------------------------------------------------------------------------------------------------------
+
+
+    // Para procesar caracteres restantes (menos de 32), se proponen 3 ideas
+    // La primera es realizarlo de forma serial, usando la función correspondiente del inciso A 
+    // La segunda es crear una nueva máscara, usando AVX-512
+    // La tercera es crear un buffer y rellenar con padding, usando AVX2
+
+
+//----------Fase 2----------
+    // De forma serial, se llama al función
+    si i < m:
+        remaining = m - i
+        case_converter_serial(text[i : i + remaining], case_type)
+
+
+
+//----------Fase 2----------
+    // Procesar bloque final menor a 32 bytes con carga emmascarada con AVX-512
+    Si i < m:
+        // Bytes restantes
+        size_t remaining = m-1
+
+        // 1. Crear máscara de carga
+        // Ejemplo: si remaining = 18 → load_mask = 00000000...0003FFFF
+        __mmask64 load_mask = (1ULL << remaining) - 1
+
+        // 2. Cargar bytes válidos en vector, los que no som válidos se rellenan con 0
+        __mmask64 vec = __m512i_maskz_loadu_epi8(load_mask, &text[i])
+
+        // 3. Crear máscara de detección (solo para bytes válidos)
+        si case_type == 0:  
+            // Convertir a minúsculas                       
+            __m512i lower = _mm512_set1_epi8('A' - 1)
+            __m512i upper = _mm512_set1_epi8('Z' + 1)
+        sino:    
+            // Convertir a mayúsculas                                  
+            __m512i lower = _mm512_set1_epi8('a' - 1)
+            __m512i upper = _mm512_set1_epi8('z' + 1)
+
+        // Comparaciones vectoriales (devuelven máscaras de bits)
+        __mmask64 mask1 = _mm512_cmpgt_epi8_mask(vec, lower)   // vec > lower
+        __mmask64 mask2 = _mm512_cmpgt_epi8_mask(upper, vec)   // upper > vec
+
+        // Combinar máscaras: rango válido ∩ bytes válidos
+        __mmask64 mask = mask1 & mask2 & load_mask
+
+        // 4. Aplicar conversión condicional
+        __m512i offset = _mm512_set1_epi8( si case_type == 0 entonces 32 sino -32 )
+        __m512i result = _mm512_mask_add_epi8(vec, mask, vec, offset)
+
+        // 5. Almacenar solo los bytes válidos
+        _mm512_mask_storeu_epi8(&text[i], load_mask, result)
+
+//----------Fase 2----------
+    //Con buffer temporal =====
+    Si i < m:
+        // Bytes restantes
+        remaining = m - i                       
+
+        // 1. Crear buffer temporal de 32 bytes inicializado en 0
+        buffer[32] = {0}
+
+        // 2. Copiar los bytes válidos al buffer
+        COPIAR(buffer[0 : remaining], text[i : i + remaining])
+
+        // 3. Cargar el buffer temporal en vector
+        vec = _mm256_loadu_si256((__m256i*)&buffer)
+
+        // 4. Crear máscara de detección
+        si case_type == 0:
+            // Convertir a minúsculas
+            lower = _mm256_set1_epi8('A' - 1)
+            upper = _mm256_set1_epi8('Z' + 1)
+        sino:                                    
+            // Convertir a mayúsculas
+            lower = _mm256_set1_epi8('a' - 1)
+            upper = _mm256_set1_epi8('z' + 1)
+
+        mask1 = _mm256_cmpgt_epi8(vec, lower)
+        mask2 = _mm256_cmpgt_epi8(upper, vec)
+        mask  = _mm256_and_si256(mask1, mask2)
+
+        // 5. Aplicar conversión condicional
+        offset = si case_type == 0 entonces 32 sino -32
+        offset_vec = _mm256_set1_epi8(offset)
+        converted = _mm256_add_epi8(vec, offset_vec)
+        result = _mm256_blendv_epi8(vec, converted, mask)
+
+        // 6. Almacenar resultado en el buffer
+        _mm256_storeu_si256((__m256i*)&buffer, result)
+
+        // 7. Copiar de vuelta solo los bytes válidos al texto original
+        COPIAR(text[i : i + remaining], buffer[0 : remaining])
+
+

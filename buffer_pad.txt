@@ -1,0 +1,37 @@
+// ===== Fase 2: Procesar bloque final menor a 32 bytes con buffer temporal =====
+Si i < m:
+
+    remaining = m - i                        // Bytes restantes (< 32)
+
+    // 1. Crear buffer temporal de 32 bytes inicializado en 0
+    buffer[32] = {0}
+
+    // 2. Copiar los bytes válidos al buffer
+    COPIAR(buffer[0 : remaining], text[i : i + remaining])
+
+    // 3. Cargar el buffer temporal en vector
+    vec = _mm256_loadu_si256((__m256i*)&buffer)
+
+    // 4. Crear máscara de detección
+    si case_type == 0:                       // Convertir a minúsculas
+        lower = _mm256_set1_epi8('A' - 1)
+        upper = _mm256_set1_epi8('Z' + 1)
+    sino:                                    // Convertir a mayúsculas
+        lower = _mm256_set1_epi8('a' - 1)
+        upper = _mm256_set1_epi8('z' + 1)
+
+    mask1 = _mm256_cmpgt_epi8(vec, lower)
+    mask2 = _mm256_cmpgt_epi8(upper, vec)
+    mask  = _mm256_and_si256(mask1, mask2)
+
+    // 5. Aplicar conversión condicional
+    offset = si case_type == 0 entonces 32 sino -32
+    offset_vec = _mm256_set1_epi8(offset)
+    converted = _mm256_add_epi8(vec, offset_vec)
+    result = _mm256_blendv_epi8(vec, converted, mask)
+
+    // 6. Almacenar resultado en el buffer
+    _mm256_storeu_si256((__m256i*)&buffer, result)
+
+    // 7. Copiar de vuelta solo los bytes válidos al texto original
+    COPIAR(text[i : i + remaining], buffer[0 : remaining])
